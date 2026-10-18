@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minik Ecrin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            touch-action: manipulation; /* Prevent double-tap zoom on mobile */
+            overflow: hidden; /* Keep it app-like */
+        }
+
+        /* Room Background */
+        .room-bg {
+            background: linear-gradient(to bottom, #fce4ec 0%, #f8bbd0 60%, #e1bee7 60%, #ce93d8 100%);
+            transition: background 1s ease-in-out;
+        }
+        
+        .room-bg.night {
+            background: linear-gradient(to bottom, #1a237e 0%, #283593 60%, #303f9f 60%, #3f51b5 100%);
+        }
+
+        /* Animations */
+        @keyframes breathe {
+            0%, 100% { transform: scaleY(1) scaleX(1); }
+            50% { transform: scaleY(1.02) scaleX(0.99); }
+        }
+        
+        @keyframes blink {
+            0%, 2%, 100% { transform: scaleY(1); }
+            1% { transform: scaleY(0.1); }
+        }
+
+        @keyframes floatHeart {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
+        }
+
+        @keyframes eatAction {
+            0% { transform: translateY(0) scale(1); }
+            20% { transform: translateY(-20px) scale(1.1); }
+            40% { transform: translateY(0) scale(1); }
+            60% { transform: translateY(-10px) scale(1.05); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        
+        @keyframes talkAction {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .cat-idle {
+            animation: breathe 3s infinite ease-in-out;
+            transform-origin: bottom center;
+        }
+
+        .cat-eating {
+            animation: eatAction 1s ease-in-out;
+        }
+        
+        .cat-talking {
+            animation: talkAction 0.3s infinite alternate;
+        }
+
+        .eye-blink {
+            animation: blink 4s infinite;
+            transform-origin: center;
+        }
+
+        .floating-heart {
+            position: absolute;
+            color: #ff4081;
+            font-size: 2rem;
+            animation: floatHeart 1.5s ease-out forwards;
+            pointer-events: none;
+        }
+
+        /* Sleep Mode Overlays */
+        #night-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 10, 0.6);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease-in-out;
+            z-index: 10;
+        }
+        
+        body.sleeping #night-overlay {
+            opacity: 1;
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            transition: transform 0.1s, filter 0.2s;
+        }
+        .action-btn:active {
+            transform: scale(0.9);
+        }
+        .action-btn.disabled {
+            filter: grayscale(100%);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Microphone Pulse */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 64, 129, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 64, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 64, 129, 0); }
+        }
+        .listening {
+            animation: pulse 1.5s infinite;
+            background-color: #ff4081 !important;
+            color: white !important;
+        }
+        
+        /* UI Bars */
+        .progress-bar {
+            transition: width 0.3s ease-out, background-color 0.3s ease;
+        }
+    </style>
+</head>
+
+<body class="room-bg w-full h-screen relative flex flex-col items-center justify-between">
+    
+    <div id="night-overlay"></div>
+
+    <div class="w-full max-w-md p-4 z-20 top-0 absolute">
+        <h1 class="text-center text-2xl font-black text-white drop-shadow-md mb-4 tracking-wider" style="-webkit-text-stroke: 1px #d81b60;">Minik Ecrin</h1>
+        
+        <div class="grid grid-cols-3 gap-3">
+            <!-- Yemek Barı -->
+            <div class="flex flex-col items-center">
+                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg mb-1 z-10">
+                    <i class="fas fa-hamburger text-orange-500 text-xl"></i>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 -mt-3 shadow-inner overflow-hidden border-2 border-white">
+                    <div id="bar-food" class="progress-bar bg-green-400 h-full rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+            
+            <!-- Uyku Barı -->
+            <div class="flex flex-col items-center">
+                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg mb-1 z-10">
+                    <i class="fas fa-moon text-indigo-500 text-xl"></i>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 -mt-3 shadow-inner overflow-hidden border-2 border-white">
+                    <div id="bar-sleep" class="progress-bar bg-green-400 h-full rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+            
+            <!-- Eğlence Barı -->
+            <div class="flex flex-col items-center">
+                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg mb-1 z-10">
+                    <i class="fas fa-gamepad text-pink-500 text-xl"></i>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 -mt-3 shadow-inner overflow-hidden border-2 border-white">
+                    <div id="bar-fun" class="progress-bar bg-green-400 h-full rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pet-area" class="flex-1 w-full flex items-center justify-center relative z-10 mt-16" onclick="petCat(event)">
+        <!-- Minik Ecrin SVG -->
+        <svg id="cat-svg" class="cat-idle w-64 h-80 drop-shadow-2xl cursor-pointer" viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg">
+            <!-- Tail -->
+            <path id="tail" d="M 130 180 Q 180 180 170 140 Q 160 100 180 90" fill="none" stroke="#fcfcfc" stroke-width="15" stroke-linecap="round"/>
+            
+            <!-- Body -->
+            <path d="M 60 120 C 30 180 40 220 50 220 L 150 220 C 160 220 170 180 140 120 Z" fill="#ffffff" stroke="#f0f0f0" stroke-width="2"/>
+            <path d="M 75 140 C 65 190 70 210 80 210 L 120 210 C 130 210 135 190 125 140 Z" fill="#ffebee"/> <!-- Belly -->
+
+            <!-- Back Legs -->
+            <circle cx="55" cy="210" r="15" fill="#ffffff"/>
+            <circle cx="145" cy="210" r="15" fill="#ffffff"/>
+
+            <!-- Front Legs -->
+            <path d="M 85 160 L 80 215 C 80 225 95 225 95 215 L 95 160" fill="#ffffff" stroke="#f0f0f0" stroke-width="1"/>
+            <path d="M 115 160 L 120 215 C 120 225 105 225 105 215 L 105 160" fill="#ffffff" stroke="#f0f0f0" stroke-width="1"/>
+
+            <!-- Head Group -->
+            <g id="head">
+                <!-- Ears -->
+                <polygon points="50,70 30,10 80,40" fill="#ffffff" stroke="#f0f0f0" stroke-width="1"/>
+                <polygon points="55,60 40,25 75,45" fill="#f8bbd0"/> <!-- Inner Ear L -->
+                
+                <polygon points="150,70 170,10 120,40" fill="#ffffff" stroke="#f0f0f0" stroke-width="1"/>
+                <polygon points="145,60 160,25 125,45" fill="#f8bbd0"/> <!-- Inner Ear R -->
+
+                <!-- Main Head shape -->
+                <circle cx="100" cy="75" r="55" fill="#ffffff" stroke="#f0f0f0" stroke-width="2"/>
+
+                <!-- Eyes (Open) -->
+                <g id="eyes-open" class="eye-blink">
+                    <!-- Left Eye -->
+                    <ellipse cx="75" cy="65" rx="14" ry="18" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <ellipse cx="75" cy="65" rx="10" ry="14" fill="#00bcd4"/> <!-- Blue Iris -->
+                    <ellipse cx="75" cy="65" rx="6" ry="10" fill="#000"/> <!-- Pupil -->
+                    <circle cx="72" cy="60" r="3" fill="#fff"/> <!-- Sparkle -->
+                    <!-- Eyelashes L -->
+                    <path d="M 60 55 Q 65 45 75 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+
+                    <!-- Right Eye -->
+                    <ellipse cx="125" cy="65" rx="14" ry="18" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <ellipse cx="125" cy="65" rx="10" ry="14" fill="#00bcd4"/> <!-- Blue Iris -->
+                    <ellipse cx="125" cy="65" rx="6" ry="10" fill="#000"/> <!-- Pupil -->
+                    <circle cx="122" cy="60" r="3" fill="#fff"/> <!-- Sparkle -->
+                    <!-- Eyelashes R -->
+                    <path d="M 140 55 Q 135 45 125 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+                </g>
+
+                <!-- Eyes (Closed - Sleeping) -->
+                <g id="eyes-closed" style="display: none;">
+                    <path d="M 60 65 Q 75 75 90 65" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M 110 65 Q 125 75 140 65" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+                </g>
+
+                <!-- Nose -->
+                <polygon points="95,85 105,85 100,92" fill="#ff80ab"/>
+
+                <!-- Mouth -->
+                <g id="mouth-idle">
+                    <path d="M 90 95 Q 100 102 100 92 Q 100 102 110 95" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+                </g>
+                <g id="mouth-open" style="display: none;">
+                    <path d="M 90 95 Q 100 92 110 95 Q 100 115 90 95" fill="#424242" stroke="#000" stroke-width="1"/>
+                    <path d="M 95 102 Q 100 110 105 102" fill="#ff5252"/> <!-- Tongue -->
+                </g>
+
+                <!-- Whiskers -->
+                <path d="M 40 80 L 60 85 M 35 90 L 60 90 M 40 100 L 60 95" fill="none" stroke="#bdbdbd" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 80 L 140 85 M 165 90 L 140 90 M 160 100 L 140 95" fill="none" stroke="#bdbdbd" stroke-width="1.5" stroke-linecap="round"/>
+                
+                <!-- Pink Bow (Tokası) -->
+                <g transform="translate(130, 20) rotate(15)">
+                    <path d="M 0 0 C -10 -15 -25 -10 -20 5 C -15 20 -5 15 0 0 Z" fill="#ff4081"/>
+                    <path d="M 0 0 C 10 -15 25 -10 20 5 C 15 20 5 15 0 0 Z" fill="#ff4081"/>
+                    <circle cx="0" cy="0" r="5" fill="#f50057"/>
+                </g>
+            </g>
+        </svg>
+
+        <!-- Dynamic elements container (Food, Zzzs) -->
+        <div id="dynamic-elements" class="absolute inset-0 pointer-events-none flex items-center justify-center"></div>
+    </div>
+
+    <div class="w-full bg-white bg-opacity-80 backdrop-blur-md rounded-t-3xl p-4 shadow-[0_-10px_20px_rgba(0,0,0,0.1)] z-20 pb-8">
+        <div class="flex justify-around max-w-md mx-auto">
+            
+            <button onclick="feed()" id="btn-food" class="action-btn flex flex-col items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl shadow-md border-2 border-orange-200">
+                <i class="fas fa-pizza-slice text-2xl text-orange-500 mb-1"></i>
+                <span class="text-[10px] font-bold text-orange-700">Yemek</span>
+            </button>
+            
+            <button onclick="toggleSleep()" id="btn-sleep" class="action-btn flex flex-col items-center justify-center w-16 h-16 bg-indigo-100 rounded-2xl shadow-md border-2 border-indigo-200">
+                <i class="fas fa-lightbulb text-2xl text-indigo-500 mb-1" id="sleep-icon"></i>
+                <span class="text-[10px] font-bold text-indigo-700">Uyku</span>
+            </button>
+            
+            <!-- Konuşma Butonu (Mikrofon) -->
+            <button onclick="toggleListening()" id="btn-talk" class="action-btn flex flex-col items-center justify-center w-20 h-20 bg-pink-100 rounded-full shadow-lg border-4 border-white -mt-8 transform transition-transform hover:scale-105 relative">
+                <i class="fas fa-microphone text-3xl text-pink-500 mb-1" id="mic-icon"></i>
+                <span class="text-[11px] font-bold text-pink-700">Konuş</span>
+            </button>
+
+            <button onclick="play()" id="btn-play" class="action-btn flex flex-col items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl shadow-md border-2 border-blue-200">
+                <i class="fas fa-yarn text-2xl text-blue-500 mb-1"></i> <!-- Fallback to bowling-ball if yarn not exist in this fa version -->
+                <span class="text-2xl mb-1">🧶</span>
+                <span class="text-[10px] font-bold text-blue-700">Oyun</span>
+            </button>
+            
+        </div>
+    </div>
+    
+    <!-- Info Modal System -->
+    <div id="message-box" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-2xl z-50 text-center font-bold text-gray-700 opacity-0 transition-opacity duration-300 pointer-events-none">
+        Mesaj
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        let stats = {
+            food: 60,
+            sleep: 80,
+            fun: 50
+        };
+        
+        let isSleeping = false;
+        let isEating = false;
+        let isTalking = false;
+
+        // DOM Elements
+        const catSvg = document.getElementById('cat-svg');
+        const eyesOpen = document.getElementById('eyes-open');
+        const eyesClosed = document.getElementById('eyes-closed');
+        const mouthIdle = document.getElementById('mouth-idle');
+        const mouthOpen = document.getElementById('mouth-open');
+        const bodyEl = document.body;
+        const sleepIcon = document.getElementById('sleep-icon');
+        const msgBox = document.getElementById('message-box');
+
+        // --- UPDATE LOOP ---
+        // Decrease stats over time
+        setInterval(() => {
+            if (!isSleeping) {
+                stats.food = Math.max(0, stats.food - 0.5);
+                stats.sleep = Math.max(0, stats.sleep - 0.3);
+                stats.fun = Math.max(0, stats.fun - 0.4);
+            } else {
+                // If sleeping, increase sleep, decrease food slower
+                stats.sleep = Math.min(100, stats.sleep + 2);
+                stats.food = Math.max(0, stats.food - 0.1);
+                
+                // Wake up automatically if fully rested
+                if (stats.sleep >= 100) {
+                    toggleSleep(); // Wake up
+                    showMessage("Minik Ecrin uyandı, çok enerjik!");
+                }
+            }
+            updateUI();
+            checkNeeds();
+        }, 2000);
+
+        function updateUI() {
+            setBar('bar-food', stats.food);
+            setBar('bar-sleep', stats.sleep);
+            setBar('bar-fun', stats.fun);
+        }
+
+        function setBar(id, val) {
+            const bar = document.getElementById(id);
+            bar.style.width = val + '%';
+            
+            // Color changing based on value
+            if (val > 60) bar.className = 'progress-bar h-full rounded-full bg-green-400';
+            else if (val > 30) bar.className = 'progress-bar h-full rounded-full bg-yellow-400';
+            else bar.className = 'progress-bar h-full rounded-full bg-red-500';
+        }
+
+        function checkNeeds() {
+            if (isSleeping) return;
+            
+            if (stats.food < 10) showMessage("Ecrin çok aç! 😿");
+            else if (stats.sleep < 10) showMessage("Ecrin çok uykusuz... 🥱");
+            else if (stats.fun < 10) showMessage("Ecrin'in canı çok sıkkın. Oyna! 😿");
+        }
+
+        function showMessage(text) {
+            msgBox.innerText = text;
+            msgBox.style.opacity = '1';
+            setTimeout(() => {
+                msgBox.style.opacity = '0';
+            }, 3000);
+        }
+
+        // --- ACTIONS ---
+
+        function petCat(e) {
+            if (isSleeping || isEating) return;
+            
+            // Increase fun
+            stats.fun = Math.min(100, stats.fun + 5);
+            updateUI();
+
+            // Create floating heart
+            const heart = document.createElement('i');
+            heart.className = 'fas fa-heart floating-heart';
+            heart.style.left = (e.clientX - 15) + 'px';
+            heart.style.top = (e.clientY - 15) + 'px';
+            document.body.appendChild(heart);
+
+            // Meow sound (using SpeechSynthesis to emulate)
+            if(Math.random() > 0.6) {
+                speak("Miyav");
+            }
+
+            // Remove heart after animation
+            setTimeout(() => { heart.remove(); }, 1500);
+            
+            catSvg.classList.remove('cat-idle');
+            // Small jump
+            catSvg.style.transform = 'scale(1.05) translateY(-10px)';
+            setTimeout(() => {
+                catSvg.style.transform = 'scale(1) translateY(0)';
+                catSvg.classList.add('cat-idle');
+            }, 200);
+        }
+
+        function feed() {
+            if (isSleeping || isEating) {
+                if(isSleeping) showMessage("Uyurken yemek yiyemez.");
+                return;
+            }
+            if (stats.food >= 100) {
+                showMessage("Ecrin tok!");
+                return;
+            }
+
+            isEating = true;
+            stats.food = Math.min(100, stats.food + 15);
+            updateUI();
+
+            // Visuals
+            catSvg.classList.remove('cat-idle');
+            catSvg.classList.add('cat-eating');
+            mouthIdle.style.display = 'none';
+            mouthOpen.style.display = 'block';
+
+            // Show food item
+            const foodDiv = document.createElement('div');
+            foodDiv.innerHTML = '🍎';
+            foodDiv.style.position = 'absolute';
+            foodDiv.style.fontSize = '3rem';
+            foodDiv.style.zIndex = '5';
+            foodDiv.style.transition = 'all 0.5s';
+            // Start near mouth
+            foodDiv.style.top = '140px';
+            foodDiv.style.left = '45%';
+            document.getElementById('dynamic-elements').appendChild(foodDiv);
+
+            setTimeout(() => { foodDiv.style.transform = 'scale(0)'; }, 300);
+            
+            setTimeout(() => {
+                foodDiv.remove();
+                catSvg.classList.remove('cat-eating');
+                catSvg.classList.add('cat-idle');
+                mouthIdle.style.display = 'block';
+                mouthOpen.style.display = 'none';
+                isEating = false;
+            }, 1000);
+        }
+
+        function toggleSleep() {
+            if (isEating || isTalking) return;
+
+            isSleeping = !isSleeping;
+            
+            if (isSleeping) {
+                bodyEl.classList.add('sleeping');
+                catSvg.classList.remove('cat-idle');
+                eyesOpen.style.display = 'none';
+                eyesClosed.style.display = 'block';
+                sleepIcon.classList.remove('fa-lightbulb');
+                sleepIcon.classList.add('fa-sun');
+                sleepIcon.parentElement.querySelector('span').innerText = 'Uyan';
+                
+                // Disable other buttons
+                document.getElementById('btn-food').classList.add('disabled');
+                document.getElementById('btn-play').classList.add('disabled');
+                document.getElementById('btn-talk').classList.add('disabled');
+                
+                createZzz();
+            } else {
+                bodyEl.classList.remove('sleeping');
+                catSvg.classList.add('cat-idle');
+                eyesOpen.style.display = 'block';
+                eyesClosed.style.display = 'none';
+                sleepIcon.classList.remove('fa-sun');
+                sleepIcon.classList.add('fa-lightbulb');
+                sleepIcon.parentElement.querySelector('span').innerText = 'Uyku';
+                
+                // Enable other buttons
+                document.getElementById('btn-food').classList.remove('disabled');
+                document.getElementById('btn-play').classList.remove('disabled');
+                document.getElementById('btn-talk').classList.remove('disabled');
+            }
+        }
+
+        function createZzz() {
+            if (!isSleeping) return;
+            const z = document.createElement('div');
+            z.innerText = 'Z';
+            z.className = 'absolute font-bold text-blue-200';
+            z.style.fontSize = (Math.random() * 1.5 + 1) + 'rem';
+            z.style.left = (50 + Math.random() * 20) + '%';
+            z.style.top = '100px';
+            z.style.animation = 'floatHeart 2s linear forwards';
+            document.getElementById('dynamic-elements').appendChild(z);
+            
+            setTimeout(() => z.remove(), 2000);
+            if(isSleeping) setTimeout(createZzz, 1500);
+        }
+
+        function play() {
+            if (isSleeping || isEating) return;
+            if (stats.fun >= 100) {
+                showMessage("Ecrin yeterince oynadı!");
+                return;
+            }
+
+            stats.fun = Math.min(100, stats.fun + 20);
+            stats.energy = Math.max(0, stats.energy - 10); // playing costs energy/sleep
+            updateUI();
+
+            // Simple animation
+            catSvg.style.transform = 'rotate(15deg) scale(1.1)';
+            setTimeout(() => { catSvg.style.transform = 'rotate(-15deg) scale(1.1)'; }, 200);
+            setTimeout(() => { catSvg.style.transform = 'rotate(10deg) scale(1.1)'; }, 400);
+            setTimeout(() => { catSvg.style.transform = 'rotate(0deg) scale(1)'; }, 600);
+            
+            speak("Mırrr");
+        }
+
+        // --- SPEECH RECOGNITION (TALKING ANGELA MECHANIC) ---
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        let isListening = false;
+        const btnTalk = document.getElementById('btn-talk');
+        const micIcon = document.getElementById('mic-icon');
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'tr-TR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = function() {
+                isListening = true;
+                btnTalk.classList.add('listening');
+                micIcon.classList.remove('fa-microphone');
+                micIcon.classList.add('fa-ear-listen');
+                btnTalk.querySelector('span').innerText = 'Dinliyor...';
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                // Ecrin repeats what you said!
+                repeatText(transcript);
+            };
+
+            recognition.onerror = function(event) {
+                console.error("Speech recognition error", event.error);
+                resetMicBtn();
+                if(event.error === 'not-allowed') {
+                    showMessage("Mikrofon izni verilmedi.");
+                } else {
+                    showMessage("Seni duyamadım.");
+                }
+            };
+
+            recognition.onend = function() {
+                resetMicBtn();
+            };
+        } else {
+            console.warn("Speech Recognition API not supported in this browser.");
+        }
+
+        function toggleListening() {
+            if (isSleeping) return;
+            
+            if (!SpeechRecognition) {
+                showMessage("Tarayıcın ses tanımayı desteklemiyor. 😿");
+                return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                } catch(e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        function resetMicBtn() {
+            isListening = false;
+            btnTalk.classList.remove('listening');
+            micIcon.classList.add('fa-microphone');
+            micIcon.classList.remove('fa-ear-listen');
+            btnTalk.querySelector('span').innerText = 'Konuş';
+        }
+
+        function repeatText(text) {
+            if(!text) return;
+            
+            isTalking = true;
+            catSvg.classList.add('cat-talking');
+            mouthIdle.style.display = 'none';
+            mouthOpen.style.display = 'block';
+
+            // Speech Synthesis
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'tr-TR';
+            utterance.pitch = 2.0; // High pitch like Angela!
+            utterance.rate = 1.1;  // Slightly faster
+
+            // Stop animation when done talking
+            utterance.onend = function() {
+                isTalking = false;
+                catSvg.classList.remove('cat-talking');
+                mouthIdle.style.display = 'block';
+                mouthOpen.style.display = 'none';
+            };
+            
+            utterance.onerror = function() {
+                isTalking = false;
+                catSvg.classList.remove('cat-talking');
+                mouthIdle.style.display = 'block';
+                mouthOpen.style.display = 'none';
+            }
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Basic speak wrapper for sound effects
+        function speak(text) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'tr-TR';
+            u.pitch = 2.0;
+            window.speechSynthesis.speak(u);
+        }
+
+        // Init UI
+        updateUI();
+
+    </script>
+</body>
+</html>
